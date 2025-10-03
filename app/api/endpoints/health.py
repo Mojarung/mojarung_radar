@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db
@@ -17,7 +18,7 @@ async def health_check():
 async def health_check_db(db: AsyncSession = Depends(get_db)):
     """Проверка подключения к БД."""
     try:
-        await db.execute("SELECT 1")
+        await db.execute(text("SELECT 1"))
         return {"status": "ok", "database": "connected"}
     except Exception as e:
         return {"status": "error", "database": str(e)}

@@ -7,7 +7,6 @@ from app.core.dependencies import get_db
 from app.schemas.news import NewsCreate, NewsResponse
 from app.schemas.response import TopStoriesResponse, HotStoryResponse
 from app.models import News, Source
-from app.services.news_service import NewsService
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -20,7 +19,7 @@ async def create_news(
     news_data: NewsCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Создание новости и запуск обработки через граф агента."""
+    """Создание новости в БД."""
     news = News(
         title=news_data.title,
         content=news_data.content,
@@ -28,19 +27,13 @@ async def create_news(
         source_id=news_data.source_id,
         published_at=news_data.published_at
     )
-    
+
     db.add(news)
     await db.commit()
     await db.refresh(news)
-    
+
     logger.info(f"Created news {news.id}")
-    
-    news_service = NewsService(db)
-    try:
-        await news_service.process_news(news.id)
-    except Exception as e:
-        logger.error(f"Error processing news {news.id}: {e}")
-    
+
     return news
 
 

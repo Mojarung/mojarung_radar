@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
-from app.api.endpoints import health, news
+from app.api.endpoints import health, news, sources
 from app.db.redis import get_redis, close_redis
 
 setup_logging()
@@ -26,6 +26,7 @@ app = FastAPI(
 
 app.include_router(health.router, prefix=settings.api_v1_prefix, tags=["health"])
 app.include_router(news.router, prefix=settings.api_v1_prefix, tags=["news"])
+app.include_router(sources.router, prefix=settings.api_v1_prefix, tags=["sources"])
 
 
 @app.get("/")

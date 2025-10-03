@@ -1,0 +1,22 @@
+[0;1;32m●[0m docker.service - Docker Application Container Engine
+     Loaded: loaded (]8;;file://5757691-hx85738/usr/lib/systemd/system/docker.service/usr/lib/systemd/system/docker.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Fri 2025-10-03 19:50:36 MSK; 15s ago
+TriggeredBy: [0;1;32m●[0m docker.socket
+       Docs: ]8;;https://docs.docker.comhttps://docs.docker.com]8;;
+   Main PID: 4049 (dockerd)
+      Tasks: 8
+     Memory: 21.6M (peak: 21.9M)
+        CPU: 435ms
+     CGroup: /system.slice/docker.service
+             └─[0;38;5;245m4049 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock[0m
+
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.022080289+03:00" level=info msg="detected 127.0.0.53 nameserver, assuming systemd-resolved, so using resolv.conf: /run/systemd/resolve/resolv.conf"
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.078510000+03:00" level=info msg="Creating a containerd client" address=/run/containerd/containerd.sock timeout=1m0s
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.142767920+03:00" level=info msg="Loading containers: start."
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.628270276+03:00" level=info msg="Loading containers: done."
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.653613333+03:00" level=info msg="Docker daemon" commit=cd04830 containerd-snapshotter=false storage-driver=overlay2 version=28.5.0
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.654437114+03:00" level=info msg="Initializing buildkit"
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.699676093+03:00" level=info msg="Completed buildkit initialization"
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.711066618+03:00" level=info msg="Daemon has completed initialization"
+Oct 03 19:50:36 5757691-hx85738 dockerd[4049]: time="2025-10-03T19:50:36.711346963+03:00" level=info msg="API listen on /run/docker.sock"
+Oct 03 19:50:36 5757691-hx85738 systemd[1]: Started docker.service - Docker Application Container Engine.

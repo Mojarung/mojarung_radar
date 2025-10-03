@@ -15,6 +15,6 @@ class News(Base):
     url = Column(String, unique=True, nullable=False, index=True)
     source_id = Column(UUID(as_uuid=True), ForeignKey("sources.id"))
     story_id = Column(UUID(as_uuid=True), ForeignKey("stories.id"), nullable=True)
-    published_at = Column(DateTime, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    published_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.now)
 
