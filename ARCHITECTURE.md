@@ -1,283 +1,175 @@
 # Архитектура проекта RADAR
 
-## Обзор
+## Общее описание
 
-RADAR - система для выявления и оценки горячих новостей в финансовой сфере, построенная на основе ReAct-архитектуры с использованием LangGraph.
+RADAR - это сервис поиска и оценки горячих новостей в финансовой сфере, построенный на основе ReAct-архитектуры с использованием LangGraph.
 
 ## Технологический стек
 
-- **FastAPI** - веб-фреймворк для API
-- **LangGraph** - граф агентов для обработки новостей
-- **PostgreSQL** - основная БД для хранения новостей, сюжетов, сущностей
-- **Redis** - кеширование и хранение векторов для дедупликации
-- **Alembic** - миграции БД
-- **Dishka** - Dependency Injection контейнер
-- **OpenRouter** - провайдер LLM (легко заменяем)
+- **FastAPI** - веб-фреймворк для создания API
+- **LangGraph** - фреймворк для создания агентов на основе графов
+- **PostgreSQL** - основная база данных для хранения новостей, сюжетов и метаданных
+- **Redis** - кеширование и очереди задач
+- **Alembic** - миграции базы данных
+- **OpenRouter** - провайдер LLM (с возможностью замены)
 
 ## Структура проекта
 
 ```
-mojarung_radar/
-├── src/
-│   ├── api/                    # FastAPI endpoints
+radar/
+├── app/
+│   ├── main.py                 # Точка входа FastAPI приложения
+│   ├── api/                    # API endpoints
 │   │   ├── __init__.py
-│   │   ├── routes/             # Группы роутов
-│   │   │   ├── __init__.py
-│   │   │   ├── health.py       # Health check
-│   │   │   └── radar.py        # Основные эндпоинты RADAR
-│   │   └── dependencies.py     # API-специфичные зависимости
-│   │
-│   ├── core/                   # Ядро приложения
-│   │   ├── __init__.py
-│   │   ├── config.py           # Настройки (Pydantic Settings)
-│   │   ├── logging.py          # Конфигурация логирования
-│   │   └── exceptions.py       # Кастомные исключения
-│   │
-│   ├── domain/                 # Доменная модель
-│   │   ├── __init__.py
-│   │   ├── entities.py         # Доменные сущности
-│   │   ├── value_objects.py    # Value Objects
-│   │   └── events.py           # Доменные события
-│   │
-│   ├── infrastructure/         # Внешние интеграции
-│   │   ├── __init__.py
-│   │   ├── database/
-│   │   │   ├── __init__.py
-│   │   │   ├── models.py       # SQLAlchemy модели
-│   │   │   ├── repositories.py # Репозитории
-│   │   │   └── session.py      # Управление сессиями
-│   │   ├── redis/
-│   │   │   ├── __init__.py
-│   │   │   ├── client.py       # Redis клиент
-│   │   │   └── cache.py        # Кеширование
-│   │   ├── llm/
-│   │   │   ├── __init__.py
-│   │   │   ├── base.py         # Базовый интерфейс LLM
-│   │   │   └── openrouter.py   # Имплементация OpenRouter
-│   │   └── sources/
+│   │   └── endpoints/
 │   │       ├── __init__.py
-│   │       └── news_scrapers.py # Сборщики новостей
-│   │
-│   ├── agents/                 # LangGraph агенты
+│   │       ├── news.py         # Endpoints для работы с новостями
+│   │       └── health.py       # Health check endpoints
+│   ├── core/                   # Базовая конфигурация
 │   │   ├── __init__.py
-│   │   ├── state.py            # Определение State графа
-│   │   ├── graph.py            # Построение графа
+│   │   ├── config.py           # Настройки приложения
+│   │   ├── logging.py          # Конфигурация логирования
+│   │   └── dependencies.py     # DI зависимости
+│   ├── db/                     # База данных
+│   │   ├── __init__.py
+│   │   ├── session.py          # Подключение к БД
+│   │   └── redis.py            # Подключение к Redis
+│   ├── models/                 # SQLAlchemy модели
+│   │   ├── __init__.py
+│   │   ├── news.py             # Модель новости
+│   │   ├── story.py            # Модель сюжета (кластера новостей)
+│   │   └── source.py           # Модель источника
+│   ├── schemas/                # Pydantic схемы
+│   │   ├── __init__.py
+│   │   ├── news.py             # Схемы для новостей
+│   │   └── response.py         # Схемы ответов API
+│   ├── llm/                    # LLM провайдеры
+│   │   ├── __init__.py
+│   │   ├── base.py             # Базовый класс провайдера
+│   │   └── openrouter.py       # OpenRouter провайдер
+│   ├── graph/                  # LangGraph агент
+│   │   ├── __init__.py
+│   │   ├── state.py            # Состояние графа
+│   │   ├── graph.py            # Определение графа
 │   │   └── nodes/              # Узлы графа
 │   │       ├── __init__.py
-│   │       ├── ingest.py       # Сборщик новостей
-│   │       ├── deduplication.py # Дедупликация
-│   │       ├── enrichment.py   # Обогащение (NER)
-│   │       ├── scoring.py      # Оценка горячести
-│   │       ├── context_rag.py  # RAG для контекста
-│   │       └── draft_generator.py # Генерация черновиков
-│   │
-│   ├── services/               # Бизнес-логика
-│   │   ├── __init__.py
-│   │   ├── news_service.py     # Работа с новостями
-│   │   ├── scoring_service.py  # Расчет hotness
-│   │   └── embeddings_service.py # Векторные представления
-│   │
-│   ├── di.py                   # Dishka DI контейнер
-│   └── main.py                 # Точка входа приложения
-│
+│   │       ├── ingestion.py    # Узел сбора новостей
+│   │       ├── deduplication.py # Узел дедупликации
+│   │       ├── enrichment.py   # Узел обогащения
+│   │       ├── scoring.py      # Узел оценки горячести
+│   │       ├── context.py      # Узел сборки контекста (RAG)
+│   │       └── draft.py        # Узел генерации черновика
+│   └── services/               # Бизнес-логика
+│       ├── __init__.py
+│       ├── news_service.py     # Сервис работы с новостями
+│       └── embeddings.py       # Сервис работы с эмбеддингами
 ├── alembic/                    # Миграции БД
 │   ├── versions/
 │   ├── env.py
 │   └── script.py.mako
-│
-├── tests/                      # Тесты
-│   ├── __init__.py
-│   ├── unit/
-│   └── integration/
-│
-├── docker/                     # Docker конфиги
-│   ├── Dockerfile
-│   └── nginx.conf (optional)
-│
-├── .env.example                # Пример переменных окружения
-├── .gitignore
 ├── docker-compose.yml
+├── Dockerfile
 ├── pyproject.toml
-├── alembic.ini
 └── README.md
 ```
 
-## Граф LangGraph
+## Архитектура агента (LangGraph)
 
-Система построена как направленный граф с узлами-обработчиками:
-
-```
-START -> Ingest -> Deduplication -> {new_cluster, existing_cluster}
-                                          ↓                ↓
-                                    Enrichment  ←─────────┘
-                                          ↓
-                                       Scoring
-                                          ↓
-                                  {hot, not_hot}
-                                          ↓
-                                    Context_RAG (если hot)
-                                          ↓
-                                   Draft_Generator
-                                          ↓
-                                        END
-```
-
-### State графа
+### Состояние графа (State)
 
 Центральный объект, передаваемый между узлами:
 
-```python
-{
-    "initial_news": dict,           # Исходная новость
-    "cluster_id": str | None,       # ID сюжета
-    "related_articles": list[dict], # Связанные статьи
-    "entities": dict,               # Извлеченные сущности
-    "timeline": list[dict],         # Временная шкала
-    "source_reputation": float,     # Репутация источника
-    "hotness_score": float,         # Оценка [0,1]
-    "narrative_summary": str,       # Промежуточная сводка
-    "final_output": dict | None,    # Готовый результат
-}
+- `news_id` - ID новости
+- `cluster_id` - ID кластера (сюжета)
+- `related_articles` - Связанные статьи
+- `entities` - Извлеченные сущности (компании, тикеры)
+- `timeline` - Временная шкала событий
+- `source_reputation` - Оценка источника
+- `hotness_score` - Оценка горячести [0,1]
+- `context` - Контекст для генерации
+- `draft` - Готовый черновик
+
+### Узлы графа
+
+1. **Ingestion Node** - Прием новостей из внешних источников
+2. **Deduplication Node** - Дедупликация через векторное сходство
+3. **Enrichment Node** - Извлечение сущностей и метаданных
+4. **Scoring Node** - Оценка горячести новости
+5. **Context Builder (RAG) Node** - Сборка контекста через RAG
+6. **Draft Generator Node** - Генерация черновика публикации
+
+### Логика переходов
+
+```
+Ingest → Deduplication
+         ↓
+    [Новая или существующая?]
+         ↓
+    Enrichment → Scoring
+         ↓
+    [hotness_score > порог?]
+         ↓
+    Context Builder → Draft Generator → Результат
 ```
 
-## Dependency Injection (Dishka)
+## Обработка сценариев
 
-Используется Dishka для управления зависимостями с различными scope:
+### Мгновенный импульс
+Новость сразу получает высокий балл и проходит весь граф за один проход.
 
-- **APP** - на весь жизненный цикл приложения (config, логгер)
-- **REQUEST** - на один HTTP запрос (DB сессия, Redis клиент)
-- **SESSION** - долгоживущие сессии (для WebSocket, если потребуется)
-
-### Провайдеры
-
-1. **ConfigProvider** - настройки приложения
-2. **DatabaseProvider** - DB сессии, репозитории
-3. **RedisProvider** - Redis клиенты
-4. **LLMProvider** - LLM клиенты (OpenRouter)
-5. **ServicesProvider** - бизнес-сервисы
-6. **AgentsProvider** - LangGraph графы
-
-## Слои приложения
-
-### 1. API Layer (src/api)
-
-Endpoints для:
-- Health check
-- Запуск обработки новостей
-- Получение топ-K горячих событий
-- Получение черновиков
-
-### 2. Domain Layer (src/domain)
-
-Чистая бизнес-логика, не зависящая от инфраструктуры:
-- Entities: News, Story, Entity, Timeline
-- Value Objects: HotnessScore, SourceReputation
-- Events: NewsIngested, StoryScored
-
-### 3. Service Layer (src/services)
-
-Оркестрация бизнес-логики:
-- NewsService: управление новостями
-- ScoringService: расчет hotness_score
-- EmbeddingsService: векторные представления
-
-### 4. Infrastructure Layer (src/infrastructure)
-
-Внешние зависимости:
-- Database: SQLAlchemy, репозитории
-- Redis: кеширование, векторные операции
-- LLM: абстракция + реализация OpenRouter
-- Sources: скрейперы новостей
-
-### 5. Agents Layer (src/agents)
-
-LangGraph агенты:
-- Определение State
-- Построение графа
-- Узлы обработки (nodes/)
-
-## Логирование
-
-Structured logging с использованием structlog:
-- JSON формат для продакшена
-- Human-readable для разработки
-- Уровни: DEBUG, INFO, WARNING, ERROR, CRITICAL
-- Контекстные логи (request_id, user_id и т.д.)
+### Нарастающий нарратив
+Сюжет постепенно накапливает `hotness_score` с каждой новой публикацией, пока не превысит порог.
 
 ## База данных
 
 ### Основные таблицы
 
-1. **news** - входящие новости
-2. **stories** - кластеры новостей (сюжеты)
-3. **entities** - извлеченные сущности (компании, тикеры)
-4. **story_entities** - связь many-to-many
-5. **timelines** - временные метки событий
-6. **sources** - источники новостей с репутацией
+- `news` - Новости
+- `stories` - Сюжеты (кластеры новостей)
+- `sources` - Источники новостей
+- `entities` - Извлеченные сущности
+- `news_embeddings` - Векторные представления
 
-### Индексы
+## Кеширование
 
-- Полнотекстовый поиск по новостям
-- Индексы по cluster_id, timestamp
-- GIN индексы для JSONB полей
+Redis используется для:
+- Кеширования результатов API
+- Хранения векторов для быстрого поиска
+- Очередей задач для асинхронной обработки
 
-## Redis
+## LLM провайдеры
 
-Использование:
-1. **Кеш** - результаты обработки, embeddings
-2. **Векторные операции** - для дедупликации (косинусное сходство)
-3. **Rate limiting** - ограничение запросов к LLM
+Абстракция провайдера позволяет легко заменить OpenRouter на другой сервис:
 
-## Замена LLM провайдера
-
-Для замены OpenRouter на другой провайдер:
-
-1. Создать новую реализацию в `src/infrastructure/llm/`
-2. Реализовать интерфейс `BaseLLM`
-3. Обновить `LLMProvider` в `src/di.py`
-4. Обновить переменные окружения в `.env`
-
-Пример:
 ```python
-# src/infrastructure/llm/anthropic.py
-class AnthropicLLM(BaseLLM):
-    async def generate(self, prompt: str) -> str:
-        ...
+class BaseLLMProvider:
+    async def generate(self, prompt: str, **kwargs) -> str:
+        raise NotImplementedError
 ```
+
+## Логирование
+
+Структурированное логирование с уровнями:
+- DEBUG - детальная отладочная информация
+- INFO - основные события системы
+- WARNING - предупреждения
+- ERROR - ошибки с stacktrace
 
 ## Масштабирование
 
-Система спроектирована для горизонтального масштабирования:
+Проект спроектирован с учетом масштабирования:
 
-1. **Stateless API** - можно запускать несколько инстансов
-2. **Shared State** - PostgreSQL + Redis
-3. **Task Queue** (будущее) - Celery/RQ для фоновой обработки
-4. **Sharding** (будущее) - партиционирование БД по времени
+1. **Горизонтальное масштабирование API** - через load balancer
+2. **Асинхронная обработка** - через Redis очереди
+3. **Кеширование** - для снижения нагрузки на БД и LLM
+4. **Векторный поиск** - для быстрой дедупликации
 
-## Мониторинг и метрики
+## Развертывание
 
-Рекомендуемые метрики:
-- Время обработки новости (end-to-end)
-- Количество обработанных новостей/минуту
-- Hotness score распределение
-- Точность дедупликации
-- Latency LLM запросов
-- Cache hit rate
+Проект запускается через docker-compose:
+- Приложение FastAPI
+- PostgreSQL база данных
+- Redis кеш
 
-## Безопасность
-
-1. **Валидация входных данных** - Pydantic
-2. **SQL Injection** - SQLAlchemy ORM
-3. **Rate Limiting** - Redis
-4. **Secrets** - переменные окружения
-5. **API Keys** - хранятся в .env, не коммитятся
-
-## Расширяемость
-
-Легко добавить:
-- Новые источники новостей (src/infrastructure/sources/)
-- Новые узлы в граф (src/agents/nodes/)
-- Новые сервисы (src/services/)
-- Новые endpoints (src/api/routes/)
-- Новые LLM провайдеры (src/infrastructure/llm/)
+Для локальной разработки используется uv с Python 3.12.
 

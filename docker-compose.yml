@@ -1,66 +1,63 @@
+version: '3.8'
+
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://radar:radar@postgres:5432/radar
+      - REDIS_URL=redis://redis:6379/0
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./app:/app/app
+    networks:
+      - radar-network
+
   postgres:
     image: postgres:16-alpine
-    container_name: radar_postgres
     environment:
-      POSTGRES_DB: radar
-      POSTGRES_USER: radar_user
-      POSTGRES_PASSWORD: radar_password
+      - POSTGRES_USER=radar
+      - POSTGRES_PASSWORD=radar
+      - POSTGRES_DB=radar
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U radar_user -d radar"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    networks:
+      - radar-network
 
   redis:
     image: redis:7-alpine
-    container_name: radar_redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    networks:
+      - radar-network
 
   adminer:
     image: adminer:latest
-    container_name: radar_adminer
     ports:
       - "8080:8080"
     environment:
-      ADMINER_DEFAULT_SERVER: postgres
+      - ADMINER_DEFAULT_SERVER=postgres
     depends_on:
       - postgres
-
-  app:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: radar_app
-    environment:
-      DATABASE_URL: postgresql+asyncpg://radar_user:radar_password@postgres:5432/radar
-      REDIS_URL: redis://redis:6379/0
-    env_file:
-      - .env
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./src:/app/src
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - radar-network
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  radar-network:
+    driver: bridge
 

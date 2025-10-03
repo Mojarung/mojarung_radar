@@ -1,42 +1,35 @@
-# RADAR - Система выявления и оценки горячих новостей в финансовой сфере
+# RADAR - Сервис поиска и оценки горячих новостей
 
-Система на основе ReAct-архитектуры с использованием LangGraph для выявления и оценки значимых новостей в финансовой сфере.
-
-## Технологии
-
-- FastAPI - веб-фреймворк
-- LangGraph - граф агентов
-- PostgreSQL - основная БД
-- Redis - кеширование и векторные операции
-- Dishka - Dependency Injection
-- OpenRouter - провайдер LLM
-- Alembic - миграции БД
+Система поиска и оценки новостей в финансовой сфере с генерацией черновика для поста/статьи на основе ReAct-архитектуры с использованием LangGraph.
 
 ## Требования
 
-- Python 3.12+
-- uv (установщик пакетов)
+- Python 3.12
+- uv (установить: `pip install uv`)
 - Docker и Docker Compose
 
-## Установка и запуск
+## Быстрый старт
 
 ### 1. Клонирование репозитория
 
 ```bash
 git clone <repository-url>
-cd mojarung_radar
+cd radar
 ```
 
 ### 2. Настройка переменных окружения
 
-Скопируйте env.example в .env и заполните необходимые значения:
+Создайте файл `.env` на основе `.env.example`:
 
 ```bash
-cp env.example .env
+cp .env.example .env
 ```
 
-Обязательно укажите:
-- `OPENROUTER_API_KEY` - ваш API ключ OpenRouter
+Отредактируйте `.env` и укажите ваш API ключ OpenRouter:
+
+```
+OPENROUTER_API_KEY=your_actual_api_key_here
+```
 
 ### 3. Запуск через Docker Compose
 
@@ -44,115 +37,158 @@ cp env.example .env
 docker-compose up --build
 ```
 
-Приложение будет доступно по адресу: http://localhost:8000
+Сервис будет доступен по адресу: `http://localhost:8000`
 
-API документация (Swagger): http://localhost:8000/docs
+Adminer (веб-интерфейс для БД) будет доступен по адресу: `http://localhost:8080`
 
-### 4. Запуск локально (для разработки)
+### 4. Запуск миграций БД
 
-Установите зависимости с помощью uv:
+После запуска контейнеров выполните миграции:
+
+```bash
+docker-compose exec app alembic upgrade head
+```
+
+## Локальная разработка (без Docker)
+
+### 1. Установка зависимостей
 
 ```bash
 uv pip install -e .
 ```
 
-Запустите PostgreSQL и Redis (через Docker или локально).
+### 2. Запуск PostgreSQL и Redis
 
-Примените миграции:
+```bash
+docker-compose up postgres redis
+```
+
+### 3. Применение миграций
 
 ```bash
 alembic upgrade head
 ```
 
-Запустите приложение:
+### 4. Запуск приложения
 
 ```bash
-uvicorn src.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Основные эндпоинты
+## Использование API
 
-- `GET /health` - проверка здоровья сервиса
-- `POST /radar/process-news` - обработка новости
-- `GET /radar/top-stories` - получение топ-K горячих историй
+### Документация API
 
-## Миграции базы данных
+После запуска доступна автоматическая документация:
 
-Создание новой миграции:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+### Основные endpoints
+
+#### Проверка здоровья сервиса
 
 ```bash
-alembic revision --autogenerate -m "description"
+curl http://localhost:8000/api/v1/health
 ```
 
-Применение миграций:
+#### Получение топ-K горячих сюжетов
 
 ```bash
-alembic upgrade head
+curl "http://localhost:8000/api/v1/stories/top?hours=24&limit=10"
 ```
 
-Откат миграции:
+Параметры:
+- `hours` - временное окно в часах (по умолчанию 24)
+- `limit` - количество сюжетов (по умолчанию 10)
+
+#### Создание новости
 
 ```bash
-alembic downgrade -1
+curl -X POST "http://localhost:8000/api/v1/news" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Компания X объявила о слиянии",
+    "content": "Полный текст новости...",
+    "url": "https://example.com/news/1",
+    "source_id": "uuid-источника",
+    "published_at": "2025-10-03T10:00:00Z"
+  }'
 ```
 
 ## Структура проекта
 
-Подробное описание архитектуры см. в файле ARCHITECTURE.md
+Подробное описание архитектуры см. в файле `ARCHITECTURE.md`.
 
 ```
-mojarung_radar/
-├── src/
-│   ├── api/              # FastAPI endpoints
-│   ├── core/             # Настройки, логирование
-│   ├── domain/           # Доменная модель
-│   ├── infrastructure/   # БД, Redis, LLM
-│   ├── agents/           # LangGraph агенты
-│   ├── services/         # Бизнес-логика
-│   ├── di.py             # DI контейнер
-│   └── main.py           # Точка входа
-├── alembic/              # Миграции
-├── tests/                # Тесты
-└── docker/               # Docker конфиги
+radar/
+├── app/                    # Основной код приложения
+│   ├── api/               # API endpoints
+│   ├── core/              # Конфигурация и базовые модули
+│   ├── db/                # Подключения к БД и Redis
+│   ├── graph/             # LangGraph агент
+│   ├── llm/               # LLM провайдеры
+│   ├── models/            # SQLAlchemy модели
+│   ├── schemas/           # Pydantic схемы
+│   └── services/          # Бизнес-логика
+├── alembic/               # Миграции БД
+├── docker-compose.yml     # Конфигурация Docker
+└── pyproject.toml         # Зависимости проекта
 ```
 
-## Замена LLM провайдера
-
-Для замены OpenRouter на другой провайдер:
-
-1. Создайте класс в `src/infrastructure/llm/` наследующий `BaseLLM`
-2. Обновите `LLMProvider` в `src/di.py`
-3. Обновите переменные окружения
-
-## Разработка
-
-Форматирование кода:
+## Создание миграций
 
 ```bash
-black src/
+alembic revision --autogenerate -m "Описание изменений"
+alembic upgrade head
 ```
 
-Линтинг:
+## Остановка сервиса
 
 ```bash
-ruff check src/
+docker-compose down
 ```
 
-Проверка типов:
+Для удаления данных БД:
 
 ```bash
-mypy src/
-```
-
-Запуск тестов:
-
-```bash
-pytest
+docker-compose down -v
 ```
 
 ## Логи
 
-Логи выводятся в stdout в формате JSON (production) или human-readable (development).
+Просмотр логов в режиме реального времени:
 
-Уровень логирования настраивается через переменную `LOG_LEVEL`.
+```bash
+docker-compose logs -f app
+```
+
+Уровень логирования настраивается в `.env`:
+
+```
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
+```
+
+## Архитектура агента
+
+Система использует граф LangGraph для обработки новостей:
+
+1. Ingestion - Прием новостей
+2. Deduplication - Дедупликация через векторное сходство
+3. Enrichment - Извлечение сущностей
+4. Scoring - Оценка горячести
+5. Context Builder (RAG) - Сборка контекста
+6. Draft Generator - Генерация черновика публикации
+
+Новости с оценкой горячести выше порога (по умолчанию 0.7) проходят полный цикл обработки и генерируют черновик публикации.
+
+## Замена LLM провайдера
+
+Для замены OpenRouter на другой LLM провайдер:
+
+1. Создайте новый класс в `app/llm/`, наследуя `BaseLLMProvider`
+2. Реализуйте методы `generate()` и `generate_structured()`
+3. Используйте новый провайдер в узлах графа
+
+Пример смотрите в `app/llm/openrouter.py`.
 

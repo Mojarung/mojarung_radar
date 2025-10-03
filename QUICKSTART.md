@@ -1,138 +1,70 @@
 # Быстрый старт RADAR
 
-## Минимальная настройка для запуска
+## За 5 минут до первого запуска
 
-### 1. Клонировать и настроить окружение
-
-```bash
-git clone <repo>
-cd mojarung_radar
-cp env.example .env
-```
-
-### 2. Отредактировать .env
-
-Минимально необходимо:
-```bash
-OPENROUTER_API_KEY=ваш_ключ_здесь
-```
-
-### 3. Запустить через Docker Compose
+### 1. Подготовка окружения
 
 ```bash
-docker-compose up --build
+git clone <repository-url>
+cd radar
+cp .env.example .env
 ```
 
-Сервис будет доступен на http://localhost:8000
+### 2. Настройка .env
 
-### 4. Проверить работоспособность
+Отредактируйте `.env` и укажите ваш OpenRouter API ключ:
+
+```
+OPENROUTER_API_KEY=sk-or-v1-...
+```
+
+### 3. Запуск
 
 ```bash
-curl http://localhost:8000/health
+docker-compose up --build -d
 ```
 
-Ответ:
-```json
-{"status": "ok"}
-```
-
-## Пример использования API
-
-### Обработка новости
+### 4. Миграции
 
 ```bash
-curl -X POST http://localhost:8000/radar/process-news \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Apple announces record quarterly earnings",
-    "content": "Apple Inc. reported record-breaking quarterly earnings today, exceeding analyst expectations by 15%. The company cited strong iPhone sales and growth in services revenue as key drivers.",
-    "source": "Bloomberg",
-    "url": "https://example.com/apple-earnings",
-    "published_at": "2025-10-03T10:00:00Z"
-  }'
+docker-compose exec app alembic upgrade head
 ```
 
-Ответ:
-```json
-{
-  "status": "processed",
-  "hotness_score": 0.68,
-  "is_hot": false,
-  "final_output": null
-}
-```
-
-### Получить топ историй
+### 5. Проверка
 
 ```bash
-curl http://localhost:8000/radar/top-stories?limit=5
+curl http://localhost:8000/api/v1/health
 ```
 
-## Локальная разработка (без Docker)
+Должен вернуть: `{"status": "ok"}`
 
-### 1. Установить зависимости
+## Первые запросы
+
+### Получить топ горячих новостей
 
 ```bash
-uv pip install -e .
+curl "http://localhost:8000/api/v1/stories/top?hours=24&limit=10"
 ```
 
-### 2. Запустить PostgreSQL и Redis
+### Документация API
+
+Откройте в браузере: http://localhost:8000/docs
+
+## Остановка
 
 ```bash
-# PostgreSQL
-docker run -d -p 5432:5432 \
-  -e POSTGRES_DB=radar \
-  -e POSTGRES_USER=radar_user \
-  -e POSTGRES_PASSWORD=radar_password \
-  postgres:16-alpine
-
-# Redis
-docker run -d -p 6379:6379 redis:7-alpine
+docker-compose down
 ```
 
-### 3. Применить миграции
+## Логи
 
 ```bash
-alembic upgrade head
+docker-compose logs -f app
 ```
 
-### 4. Запустить приложение
+## Дальнейшие шаги
 
-```bash
-uvicorn src.main:app --reload
-```
-
-## Структура ответов
-
-### Горячая новость (is_hot=true)
-
-```json
-{
-  "status": "processed",
-  "hotness_score": 0.85,
-  "is_hot": true,
-  "final_output": {
-    "headline": "Apple announces record quarterly earnings",
-    "hotness": 0.85,
-    "why_now": "Превышение ожиданий аналитиков на 15% сигнализирует о сильной позиции компании",
-    "entities": {
-      "companies": ["Apple Inc."],
-      "tickers": ["AAPL"],
-      "sectors": ["Technology"],
-      "countries": ["USA"]
-    },
-    "sources": ["https://example.com/apple-earnings"],
-    "timeline": [...],
-    "draft": "# Apple бьет рекорды\n\n..."
-  }
-}
-```
-
-## Следующие шаги
-
-1. Изучить ARCHITECTURE.md для понимания структуры
-2. Прочитать IMPLEMENTATION_GUIDE.md для деталей реализации
-3. Реализовать конкретные источники новостей
-4. Добавить NER модель для извлечения сущностей
-5. Настроить мониторинг и алерты
+1. Прочитайте ARCHITECTURE.md для понимания структуры
+2. Изучите EXTENDING.md для расширения функционала
+3. Прочитайте DEPLOYMENT.md для production развертывания
 

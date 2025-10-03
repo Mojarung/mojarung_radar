@@ -1,23 +1,24 @@
-import asyncio
 from logging.config import fileConfig
+import asyncio
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from src.core.config import get_settings
-from src.infrastructure.database.models import Base
+from alembic import context
+
+from app.db.session import Base
+from app.models import News, Story, Source
+from app.core.config import settings
 
 config = context.config
-
-settings = get_settings()
-config.set_main_option("sqlalchemy.url", str(settings.database_url))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 
 def run_migrations_offline() -> None:
