@@ -1,63 +1,173 @@
 version: '3.8'
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://radar:radar@postgres:5432/radar
-      - REDIS_URL=redis://redis:6379/0
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    depends_on:
-      - postgres
-      - redis
-    volumes:
-      - ./app:/app/app
-    networks:
-      - radar-network
-
   postgres:
     image: postgres:16-alpine
+    container_name: radar-postgres
     environment:
-      - POSTGRES_USER=radar
-      - POSTGRES_PASSWORD=radar
-      - POSTGRES_DB=radar
+      POSTGRES_USER: radar_user
+      POSTGRES_PASSWORD: radar_password
+      POSTGRES_DB: radar_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - radar-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U radar_user -d radar_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  redis:
-    image: redis:7-alpine
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    container_name: radar-clickhouse
+    environment:
+      CLICKHOUSE_DB: radar_clickhouse
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
-      - "6379:6379"
+      - "8123:8123"
+      - "9000:9000"
     volumes:
-      - redis_data:/data
-    networks:
-      - radar-network
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: radar-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: radar_user
+      RABBITMQ_DEFAULT_PASS: radar_password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   adminer:
     image: adminer:latest
+    container_name: radar-adminer
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
     ports:
       - "8080:8080"
-    environment:
-      - ADMINER_DEFAULT_SERVER=postgres
     depends_on:
       - postgres
-    networks:
-      - radar-network
+
+  tabix:
+    image: spoonest/clickhouse-tabix-web-client
+    container_name: radar-tabix
+    ports:
+      - "8081:80"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: radar-api
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: radar_user
+      POSTGRES_PASSWORD: radar_password
+      POSTGRES_DB: radar_db
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DB: radar_clickhouse
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: radar_user
+      RABBITMQ_PASSWORD: radar_password
+      RABBITMQ_VHOST: /
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: anthropic/claude-3.5-sonnet
+      OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      LOG_LEVEL: INFO
+      FAISS_INDEX_PATH: /app/data/faiss_index
+      EMBEDDING_MODEL: sentence-transformers/all-MiniLM-L6-v2
+      DEDUP_SIMILARITY_THRESHOLD: 0.85
+      NEWS_QUEUE_NAME: news_ingestion_queue
+      PREFETCH_COUNT: 10
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - faiss_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: radar-worker
+    command: python -m src.workers.news_processor
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: radar_user
+      POSTGRES_PASSWORD: radar_password
+      POSTGRES_DB: radar_db
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DB: radar_clickhouse
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: radar_user
+      RABBITMQ_PASSWORD: radar_password
+      RABBITMQ_VHOST: /
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: anthropic/claude-3.5-sonnet
+      OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
+      LOG_LEVEL: INFO
+      FAISS_INDEX_PATH: /app/data/faiss_index
+      EMBEDDING_MODEL: sentence-transformers/all-MiniLM-L6-v2
+      DEDUP_SIMILARITY_THRESHOLD: 0.85
+      NEWS_QUEUE_NAME: news_ingestion_queue
+      PREFETCH_COUNT: 10
+    volumes:
+      - .:/app
+      - faiss_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
 volumes:
   postgres_data:
-  redis_data:
-
-networks:
-  radar-network:
-    driver: bridge
+  clickhouse_data:
+  rabbitmq_data:
+  faiss_data:
 
