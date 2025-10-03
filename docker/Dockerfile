@@ -17,7 +17,7 @@ RUN apt-get update && \
 RUN pip install --upgrade pip && \
     pip install uv
 
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 RUN uv pip install --system -e .
 
 COPY . .

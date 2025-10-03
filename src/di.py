@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from typing import Any
 
 from dishka import Provider, Scope, from_context, provide
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -136,7 +137,7 @@ class AgentsProvider(Provider):
         scoring_node: ScoringNode,
         context_rag_node: ContextRAGNode,
         draft_generator_node: DraftGeneratorNode,
-    ):
+    ) -> Any:
         return create_radar_graph(
             dedup_node,
             enrichment_node,

@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column("ticker", sa.String(20), nullable=True),
         sa.Column("sector", sa.String(100), nullable=True),
         sa.Column("country", sa.String(100), nullable=True),
-        sa.Column("metadata", JSON, default={}),
+        sa.Column("extra_data", JSON, default={}),
     )
 
     op.create_table(
@@ -55,7 +55,7 @@ def upgrade() -> None:
         sa.Column("url", sa.String(1000), nullable=False, unique=True),
         sa.Column("published_at", TIMESTAMP, nullable=False),
         sa.Column("cluster_id", UUID(as_uuid=True), sa.ForeignKey("stories.id"), nullable=True),
-        sa.Column("metadata", JSON, default={}),
+        sa.Column("extra_data", JSON, default={}),
         sa.Column("created_at", TIMESTAMP, server_default=sa.func.now()),
     )
 
@@ -77,7 +77,7 @@ def upgrade() -> None:
         sa.Column("event_type", sa.String(100), nullable=False),
         sa.Column("description", sa.Text, nullable=False),
         sa.Column("source_url", sa.String(1000), nullable=True),
-        sa.Column("metadata", JSON, default={}),
+        sa.Column("extra_data", JSON, default={}),
     )
 
     op.create_index("idx_timelines_story_id", "timelines", ["story_id"])

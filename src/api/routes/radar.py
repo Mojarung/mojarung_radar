@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any
 
-from dishka.integrations.fastapi import FromDishka, inject
+from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
@@ -11,7 +12,7 @@ from src.services import NewsService
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/radar", tags=["radar"])
+router = APIRouter(prefix="/radar", tags=["radar"], route_class=DishkaRoute)
 
 
 class NewsInput(BaseModel):
@@ -31,10 +32,9 @@ class ProcessNewsResponse(BaseModel):
 
 
 @router.post("/process-news", response_model=ProcessNewsResponse)
-@inject
 async def process_news(
     news_input: NewsInput,
-    radar_graph: FromDishka,
+    radar_graph: FromDishka[Any],
     news_service: FromDishka[NewsService],
 ):
     logger.info("processing_news", source=news_input.source, url=news_input.url)
@@ -66,11 +66,10 @@ async def process_news(
 
 
 @router.get("/top-stories")
-@inject
 async def get_top_stories(
-    limit: int = 10,
     news_service: FromDishka[NewsService],
     settings: FromDishka[Settings],
+    limit: int = 10,
 ):
     limit = min(limit, settings.top_k_stories)
     stories = await news_service.get_top_stories(limit)

@@ -23,7 +23,7 @@ class NewsRepository:
             url=news.url,
             published_at=news.published_at,
             cluster_id=news.cluster_id,
-            metadata=news.metadata,
+            extra_data=news.metadata,
         )
         self.session.add(news_model)
         await self.session.flush()
@@ -56,7 +56,7 @@ class NewsRepository:
             url=model.url,
             published_at=model.published_at,
             cluster_id=model.cluster_id,
-            metadata=model.metadata,
+            metadata=model.extra_data or {},
             created_at=model.created_at,
         )
 
@@ -138,7 +138,7 @@ class StoryRepository:
             ticker=model.ticker,
             sector=model.sector,
             country=model.country,
-            metadata=model.metadata or {},
+            metadata=model.extra_data or {},
         )
 
 
@@ -154,7 +154,7 @@ class EntityRepository:
             ticker=entity.ticker,
             sector=entity.sector,
             country=entity.country,
-            metadata=entity.metadata,
+            extra_data=entity.metadata,
         )
         self.session.add(entity_model)
         await self.session.flush()
@@ -180,6 +180,6 @@ class EntityRepository:
             ticker=model.ticker,
             sector=model.sector,
             country=model.country,
-            metadata=model.metadata or {},
+            metadata=model.extra_data or {},
         )
 

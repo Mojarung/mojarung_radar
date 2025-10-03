@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, PostgresDsn, RedisDsn
+from pydantic import Field, PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,8 +34,19 @@ class Settings(BaseSettings):
     dedup_similarity_threshold: float = Field(default=0.85, alias="DEDUP_SIMILARITY_THRESHOLD")
     top_k_stories: int = Field(default=10, alias="TOP_K_STORIES")
 
-    news_sources: list[str] = Field(default=["bloomberg", "reuters"], alias="NEWS_SOURCES")
+    news_sources: str = Field(default="bloomberg,reuters", alias="NEWS_SOURCES")
     rate_limit_per_minute: int = Field(default=60, alias="RATE_LIMIT_PER_MINUTE")
+
+    @field_validator("news_sources", mode="before")
+    @classmethod
+    def parse_news_sources(cls, v: str | list[str]) -> str:
+        if isinstance(v, list):
+            return ",".join(v)
+        return v
+
+    @property
+    def news_sources_list(self) -> list[str]:
+        return [s.strip() for s in self.news_sources.split(",") if s.strip()]
 
 
 @lru_cache

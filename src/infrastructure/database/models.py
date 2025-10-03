@@ -28,7 +28,7 @@ class NewsModel(Base):
     url = Column(String(1000), nullable=False, unique=True)
     published_at = Column(TIMESTAMP, nullable=False)
     cluster_id = Column(UUID(as_uuid=True), ForeignKey("stories.id"), nullable=True)
-    metadata = Column(JSON, default={})
+    extra_data = Column(JSON, default={})
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
     story = relationship("StoryModel", back_populates="news_items")
@@ -43,7 +43,7 @@ class EntityModel(Base):
     ticker = Column(String(20), nullable=True)
     sector = Column(String(100), nullable=True)
     country = Column(String(100), nullable=True)
-    metadata = Column(JSON, default={})
+    extra_data = Column(JSON, default={})
 
     stories = relationship("StoryModel", secondary=story_entities, back_populates="entities")
 
@@ -75,7 +75,7 @@ class TimelineModel(Base):
     event_type = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
     source_url = Column(String(1000), nullable=True)
-    metadata = Column(JSON, default={})
+    extra_data = Column(JSON, default={})
 
 
 class SourceReputationModel(Base):
