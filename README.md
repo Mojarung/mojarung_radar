@@ -1,82 +1,288 @@
 # RADAR - Financial News Analysis System
 
-## Running with Docker Compose
+> **Frontend:** https://github.com/Mojarung/radar_frontend
+
+## Быстрый запуск
 
 ```bash
 docker-compose up --build
 ```
 
-### Services
+После запуска, бекенд будет доступен по адресу:
 
-Access the API at `http://localhost:8000`
+- **API**: http://localhost:8000
 
-Access Adminer (PostgreSQL UI) at `http://localhost:8080`
+## Структура проекта
 
-Access Tabix (ClickHouse UI) at `http://localhost:8081`
+RADAR - это комплексная система анализа финансовых новостей, построенная на базе современных технологий машинного обучения и распределенных систем.
 
-Access RabbitMQ Management at `http://localhost:15672` (user: radar_user, password: radar_password)
+### Архитектура системы
 
-### Running Services
-
-- `radar-api` - FastAPI REST API
-- `radar-worker` - News processing worker
-- `radar-parser` - News parser scheduler (runs every 5 minutes)
-- `radar-postgres` - PostgreSQL database
-- `radar-clickhouse` - ClickHouse database
-- `radar-rabbitmq` - RabbitMQ message queue
-
-## Running Locally with uv
-
-### Prerequisites
-
-Ensure PostgreSQL, ClickHouse, and RabbitMQ are running locally.
-
-### Setup
-
-```bash
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e .
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        RADAR NEWS ANALYSIS                       │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
+│  │   PARSERS   │ │   WORKER    │ │     API     │ │   FRONTEND  │ │
+│  │ • RBC       │ │ • Dedup     │ │ • FastAPI   │ │ • React/TS  │ │
+│  │ • Lenta     │ │ • ML Score  │ │ • LangGraph │ │ • Shadcn/ui │ │
+│  │ • RIA       │ │ • ClickHouse│ │ • Analysis  │ │ • Charts    │ │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
+│  │ PostgreSQL  │ │ ClickHouse  │ │   RabbitMQ  │ │    FAISS    │ │
+│  │ • Sources   │ │ • Articles  │ │ • Queues    │ │ • Vectors   │ │
+│  │ • Reput.    │ │ • Hotness   │ │ • Messages  │ │ • Similarity│ │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Run Migrations
+### Компоненты системы
 
-```bash
-cd src/db
-alembic upgrade head
+#### 1. Парсеры новостей
+
+Автоматическая система сбора новостей из различных источников:
+
+- **RBCParser** - РБК новости
+- **LentaParser** - Lenta.ru
+- **RIANovostiParser** - РИА Новости
+- **MosruNewsParser** - Московские новости
+
+**Особенности:**
+
+- Автоматический запуск каждые 5 минут
+- FastText классификация для фильтрации финансовых новостей
+- Дедупликация по URL для избежания дубликатов
+- Асинхронная обработка для высокой производительности
+
+#### 2. Worker обработки (`src/workers/`)
+
+Фоновый обработчик новостей:
+
+- **Семантическая дедупликация** с помощью FAISS векторного поиска
+- **Группировка статей** по темам (`dedup_group`)
+- **ML-модель скоринга** для предсказания "горячести" новостей
+- **Хранение в ClickHouse** для быстрого доступа
+
+#### 3. API слой (`src/api/`)
+
+REST API на базе FastAPI:
+
+- **`/api/v1/analyze`** - запуск анализа новостей
+- **Автоматическая документация** на Swagger UI
+- **Валидация запросов** через Pydantic модели
+- **Зависимости** для управления подключениями к БД
+
+#### 4. Агент анализа (`src/agents/`)
+
+Интеллектуальный агент на базе LangGraph:
+
+- **Графовый пайплайн** обработки новостей
+- **Комбинированное скоринг** (традиционный + ML)
+- **LLM-обогащение** результатов для создания контента
+- **Асинхронная обработка** для высокой производительности
+
+#### 5. Сервисы (`src/services/`)
+
+Бизнес-логика и внешние интеграции:
+
+- **HotnessScorer** - расчет традиционной "горячести"
+- **MLScorer** - интеграция с обученной моделью
+- **LLMClient** - работа с внешними LLM (OpenRouter)
+- **DedupService** - семантическая дедупликация
+
+#### 6. Анализаторы (`src/parsers/`)
+Специализированные анализаторы контента:
+
+- **NERAnalyzer** (Natasha) - извлечение именованных сущностей
+- **FastTextClassifier** - классификация новостей по категориям
+- **News parsers** - сбор новостей из различных источников
+
+#### 7. Базы данных
+
+**PostgreSQL:**
+
+- Хранение источников новостей с репутацией
+- Метаданные и настройки системы
+
+**ClickHouse:**
+
+- Высокопроизводительное хранение статей
+- Оптимизированные запросы по временным окнам
+- Колончатое хранение для аналитики
+
+**FAISS:**
+
+- Векторный индекс для семантического поиска
+- Поиск похожих новостей для дедупликации
+
+## Как рассчитывается Hotness Score
+
+Система использует **комбинированный подход** к расчету "горячести" новостей:
+
+### Традиционный Hotness Score (70% веса)
+
+Рассчитывается по 5 ключевым факторам:
+
+#### 1. Материальность (Materiality) - 25%
+
+Анализ ключевых слов и терминов:
+
+```python
+high_impact_keywords = [
+    "merger", "acquisition", "bankruptcy", "guidance", "regulation",
+    "lawsuit", "fraud", "investigation", "earnings", "reструктуризация",
+    "слияние", "поглощение", "банкротство", "регулирование",
+    "иск", "мошенничество", "расследование", "прибыль", 
+    и т.д.
+]
 ```
 
-### Start API Server
+#### 2. Скорость распространения (Velocity) - 25%
 
-```bash
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+Как быстро новость появляется в источниках:
+
+```python
+# Рассчитывается как статьи в час
+velocity = len(articles) / time_span_hours
+normalized_velocity = min(1.0, velocity / 2.0)
 ```
 
-### Start Worker
+#### 3. Широта охвата (Breadth) - 20%
 
-```bash
-python -m src.workers.news_processor
+Количество уникальных источников:
+
+```python
+unique_sources = set(article.get("source_id") for article in articles)
+breadth = min(1.0, len(unique_sources) / 5.0)
 ```
 
-### Start Parser Scheduler
+#### 4. Достоверность (Credibility) - 20%
 
-```bash
-python -m src.parsers.scheduler
+Репутация источников:
+
+```python
+credibility = np.mean(source_reputation_scores)
 ```
 
-### Send Sample News (Testing)
+#### 5. Неожиданность (Unexpectedness) - 10%
 
-```bash
-python scripts/mock_parser.py
+Длина и детализация контента:
+
+```python
+unexpectedness = min(1.0, avg_content_length / 2000.0)
 ```
 
-## API Usage
+### ML-модель Hotness Score (30% веса)
 
-### Analyze News
+Обученная модель машинного обучения на базе CatBoost:
+
+**Особенности модели:**
+
+- Обучена на исторических данных новостей (800K+)
+- Учитывает сложные паттерны и зависимости
+- Автоматически обновляется и переобучается
+- Работает в Docker контейнере
+
+**Комбинированный расчет:**
+
+```python
+# Финальный score для ранжирования
+combined_score = (traditional_score * 0.7) + (ml_score * 0.3)
+```
+
+### Процесс анализа
+
+1. **Сбор новостей** парсерами (каждые 5 минут)
+2. **FastText фильтрация** - только финансовые новости
+3. **Семантическая дедупликация** через FAISS
+4. **Группировка по темам** (`dedup_group`)
+5. **Расчет традиционного hotness** по 5 факторам
+6. **ML-модель скоринг** для каждого кластера
+7. **Комбинирование scores** (70% + 30%)
+8. **Выбор топ-K** новостей для анализа
+9. **LLM-обогащение** - генерация контента и объяснений
+
+## Технологии
+
+| Компонент                | Технология    | Назначение                                                         |
+| --------------------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| **Backend**                       | FastAPI                 | REST API                                                                     |
+| **Агент**                    | LangGraph               | Графовый пайплайн обработки                         |
+| **Базы данных**         | PostgreSQL + ClickHouse | Структурированные + аналитические данные |
+| **Векторный поиск** | FAISS                   | Семантическая дедупликация                          |
+| **Очереди**                | RabbitMQ                | Асинхронная обработка                                    |
+| **ML-модель**               | CatBoost                | Предсказание "горячести"                                |
+| **LLM**                           | OpenRouter              | Генерация контента                                          |
+| **Парсинг**                | BeautifulSoup           | Сбор новостей                                                    |
+| **NER анализ**             | Natasha                 | Извлечение сущностей (компании, персоны)                      |
+| **Контейнеры**          | Docker Compose          | Оркестрация сервисов                                      |
+
+## API использование
+
+### Анализ новостей
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"time_window_hours": 720, "top_k": 5}'
+  -d '{
+    "time_window_hours": 720,
+    "top_k": 5
+  }'
 ```
 
+**Параметры:**
+
+- `time_window_hours` - временное окно анализа (часы)
+- `top_k` - количество топ новостей для детального анализа
+
+**Ответ:**
+
+```json
+[
+  {
+    "dedup_group": "uuid",
+    "hotness": 0.723,
+    "ml_hotness": 0.654,
+    "combined_hotness": 0.703,
+    "headline": "Краткий заголовок",
+    "why_now": "Объяснение актуальности",
+    "entities": ["компании", "тикеры"],
+    "sources": ["список источников"],
+    "timeline": ["хронология событий"],
+    "draft": "черновик поста",
+    "telegram_post": "готовый пост для Telegram"
+  }
+]
+```
+
+## Локальная разработка
+
+### Требования
+
+- Python 3.12+
+- PostgreSQL, ClickHouse, RabbitMQ (локально)
+
+### Установка
+
+```bash
+# Создание виртуального окружения
+uv venv
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate  # Windows
+
+# Установка зависимостей
+uv pip install -e .
+
+# Миграции базы данных
+cd src/db
+alembic upgrade head
+
+# Запуск сервисов
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+python -m src.workers.news_processor
+python -m src.parsers.scheduler
+```
+
+
+http://77.95.206.117:3000/
