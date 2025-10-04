@@ -8,10 +8,10 @@ class AnalysisRequest(BaseModel):
     """Request schema for news analysis endpoint"""
     
     time_window_hours: int = Field(
-        default=24,
+        default=720,
         ge=1,
-        le=168,
-        description="Time window in hours (1-168)"
+        le=2160,
+        description="Time window in hours (1-2160 for 3 months max)"
     )
     top_k: int = Field(
         default=5,

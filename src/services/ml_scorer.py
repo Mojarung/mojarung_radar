@@ -26,9 +26,10 @@ class MLScorer:
         # Определяем путь к модели в контейнере
         if model_path is None:
             # В контейнере модель должна быть в /app/ml/hot_news_model/models/
-            model_path = "/app/ml/hot_news_model/models/lenta_model.joblib"
+            model_path = "/app/ml/hot_news_model/models"
 
         self.model_path = model_path
+        self.model_name = "lenta_model.joblib"
         self.model_available = predict_hot_score is not None
 
         if self.model_available:
@@ -62,7 +63,8 @@ class MLScorer:
             results_df = predict_hot_score(
                 model_path=self.model_path,
                 data_path=temp_csv,
-                output_path=temp_output
+                output_path=temp_output,
+                model_name=self.model_name
             )
 
             # Clean up temp files

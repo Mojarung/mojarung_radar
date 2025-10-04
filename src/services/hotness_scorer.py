@@ -22,7 +22,7 @@ class HotnessScorer:
         self,
         articles: List[Dict[str, Any]],
         source_reputation_scores: List[float],
-        time_window_hours: int = 24,
+        time_window_hours: int = 720,
     ) -> float:
         """
         Calculate hotness score for a cluster of articles.

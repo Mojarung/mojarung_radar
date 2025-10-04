@@ -20,7 +20,7 @@ from src.core.logging_config import log
 def main():
     """Run news analysis with ML model integration"""
     parser = argparse.ArgumentParser(description="Run news analysis with ML model")
-    parser.add_argument("--time-window", type=int, default=24,
+    parser.add_argument("--time-window", type=int, default=720,
                        help="Time window in hours (default: 24)")
     parser.add_argument("--top-k", type=int, default=5,
                        help="Number of top news to return (default: 5)")
@@ -28,6 +28,8 @@ def main():
                        help="Output file for results (default: stdout)")
     parser.add_argument("--verbose", action="store_true",
                        help="Verbose output")
+    parser.add_argument("--async-mode", action="store_true",
+                       help="Use async LLM processing for faster execution")
 
     args = parser.parse_args()
 
@@ -38,7 +40,8 @@ def main():
         # Run analysis
         results = run_analysis(
             time_window_hours=args.time_window,
-            top_k=args.top_k
+            top_k=args.top_k,
+            async_mode=args.async_mode
         )
 
         log.info(f"✅ Analysis completed! Found {len(results)} news items")
@@ -70,9 +73,9 @@ def main():
                 print("-" * 60)
 
                 if args.verbose:
-                    print(f"Traditional Hotness: {result.get('hotness', 0)".3f"}")
-                    print(f"ML Hotness: {result.get('ml_hotness', 0)".3f"}")
-                    print(f"Combined Hotness: {result.get('combined_hotness', 0)".3f"}")
+                    print(f"Traditional Hotness: {result.get('hotness', 0):.3f}")
+                    print(f"ML Hotness: {result.get('ml_hotness', 0):.3f}")
+                    print(f"Combined Hotness: {result.get('combined_hotness', 0):.3f}")
                     print(f"Why Now: {result.get('why_now', 'N/A')}")
 
                     # Show entities if available
@@ -90,7 +93,8 @@ def main():
                 if telegram_post:
                     # Show first few lines
                     lines = telegram_post.split('\n')[:4]
-                    print("Telegram Post:"                    for line in lines:
+                    print("Telegram Post:")
+                    for line in lines:
                         print(f"  {line}")
                     if len(telegram_post.split('\n')) > 4:
                         print("  ...")
@@ -100,7 +104,12 @@ def main():
             print("="*80)
             print(f"Total results: {len(results)}")
             print(f"Time window: {args.time_window} hours")
+            print(f"Async mode: {args.async_mode}")
             print(f"Analysis completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+            if args.async_mode:
+                print("\n💡 Tip: Async mode processes multiple news clusters in parallel,")
+                print("   significantly reducing total analysis time when processing many news items!")
 
         return 0
 

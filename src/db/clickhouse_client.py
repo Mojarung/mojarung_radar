@@ -95,7 +95,7 @@ class ClickHouseClient:
             return False
 
     def get_recent_articles(
-        self, time_window_hours: int = 24
+        self, time_window_hours: int = 720
     ) -> List[Dict[str, Any]]:
         """Fetch articles from the specified time window"""
         query = f"""
@@ -179,7 +179,7 @@ class ClickHouseClient:
             return []
 
     def count_articles_by_dedup_group_over_time(
-        self, dedup_group: uuid.UUID, time_window_hours: int = 24
+        self, dedup_group: uuid.UUID, time_window_hours: int = 720
     ) -> int:
         """Count articles in a dedup group within a time window"""
         query = """

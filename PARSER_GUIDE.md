@@ -181,7 +181,7 @@ from src.parsers.rbc_parser import RBCParser
 
 async def test():
     parser = RBCParser()
-    articles = await parser.fetch_news(hours_back=1, max_pages=1)
+    articles = await parser.fetch_news(hours_back=168, max_pages=10)
     print(f'Found {len(articles)} articles')
 
 asyncio.run(test())

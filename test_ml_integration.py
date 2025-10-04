@@ -81,7 +81,7 @@ def test_agent_integration():
         from src.agents.graphs import run_analysis
 
         # Run analysis with small parameters for testing
-        results = run_analysis(time_window_hours=1, top_k=2)
+        results = run_analysis(time_window_hours=720, top_k=2)
 
         log.info(f"Agent analysis completed with {len(results)} results")
 

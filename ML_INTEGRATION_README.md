@@ -43,7 +43,7 @@ ML-модель автоматически ищется по пути:
 
 ```bash
 # В контейнере
-python run_analysis_with_ml.py --time-window 24 --top-k 5 --verbose
+python run_analysis_with_ml.py --time-window 720 --top-k 5 --verbose
 
 # Сохранить результаты в файл
 python run_analysis_with_ml.py --time-window 48 --top-k 10 --output results.json
@@ -105,7 +105,7 @@ python test_ml_integration.py
 from src.agents.graphs import run_analysis
 
 # Запуск анализа
-results = run_analysis(time_window_hours=24, top_k=5)
+results = run_analysis(time_window_hours=720, top_k=5)
 
 # Проверка результатов
 for result in results:

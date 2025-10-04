@@ -51,7 +51,7 @@ def main():
     log.info("1. Start the API server: uvicorn src.api.main:app --reload")
     log.info("2. Start the worker: python -m src.workers.news_processor")
     log.info("3. Send sample news: python scripts/mock_parser.py")
-    log.info("4. Test the API: curl -X POST http://localhost:8000/api/v1/analyze -H 'Content-Type: application/json' -d '{\"time_window_hours\": 24, \"top_k\": 5}'")
+    log.info("4. Test the API: curl -X POST http://localhost:8000/api/v1/analyze -H 'Content-Type: application/json' -d '{\"time_window_hours\": 720, \"top_k\": 5}'")
 
 
 if __name__ == "__main__":

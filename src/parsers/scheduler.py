@@ -123,10 +123,10 @@ class ParserScheduler:
             if isinstance(parser, RBCParser):
                 task = self.run_parser(
                     parser,
-                    hours_back=0,    # Today only (0 = from midnight)
-                    max_pages=10,    # 10 pages
+                    hours_back=168,    # One week (168 hours = 7 days)
+                    max_pages=50,    # 10 pages
                     include_text=True,
-                    classify=True    # Enable FastText classification
+                    classify=False    # Enable FastText classification
                 )
             else:
                 task = self.run_parser(parser)

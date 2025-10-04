@@ -89,8 +89,8 @@ class RBCParser(BaseParser):
     
     async def fetch_news(
         self,
-        hours_back: int = 24,
-        max_pages: int = 10,
+        hours_back: int = 168,
+        max_pages: int = 50,
         include_text: bool = True,
         classify: bool = True
     ) -> List[Dict[str, Any]]:

@@ -67,7 +67,7 @@ POST http://localhost:8000/api/v1/analyze
 Content-Type: application/json
 
 {
-  "time_window_hours": 24,
+  "time_window_hours": 720,
   "top_k": 5
 }
 ```

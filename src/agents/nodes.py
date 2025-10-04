@@ -1,4 +1,5 @@
 """Node functions for LangGraph agent pipeline"""
+import asyncio
 from typing import TypedDict, List, Dict, Any, Annotated
 import uuid
 from datetime import datetime
@@ -162,16 +163,17 @@ def rank_and_select_node(state: AgentState) -> AgentState:
     return state
 
 
-def enrich_with_llm_node(state: AgentState) -> AgentState:
-    """Node 5: Enrich top clusters with LLM-generated content"""
-    log.info("Enriching clusters with LLM")
-    
+async def enrich_with_llm_node_async(state: AgentState) -> AgentState:
+    """Node 5: Enrich top clusters with LLM-generated content (async version)"""
+    log.info("Enriching clusters with LLM (async)")
+
     llm = get_llm_client()
     final_results = []
-    
-    for cluster in state["enriched_results"]:
+
+    # Process clusters in parallel using asyncio
+    async def process_cluster(cluster):
         articles = cluster["articles"]
-        
+
         # Consolidate article content
         consolidated_text = "\n\n---\n\n".join([
             f"Title: {art.get('title', '')}\n"
@@ -181,7 +183,7 @@ def enrich_with_llm_node(state: AgentState) -> AgentState:
             f"Content: {art.get('content', '')[:1000]}"  # Limit content length
             for art in articles
         ])
-        
+
         # Generate enriched data with LLM
         try:
             prompt = f"""Ты — финансовый новостной аналитик и создатель контента для Telegram. Проанализируй следующие новостные статьи и предоставь структурированный ответ.
@@ -211,14 +213,14 @@ def enrich_with_llm_node(state: AgentState) -> AgentState:
    - Если новость вызывает дискуссию/мнение, добавь в конце короткий вопрос и 2-3 варианта реакций-эмодзи
    - Для сухих фактов или длинных списков пропусти опрос
    - Делай кратко, вовлекающе и готово к копированию
-   
+
 Пример формата telegram_post:
 "⚡️Минимальную пенсию в России хотят увеличить до ₽35 тысяч\\n\\nС такой идеей выступил депутат Мособлдумы Анатолий Никитин. По его словам, увеличение пенсии положительно скажется на демографической ситуации. Пенсионерам не нужно будет работать, они смогут «больше времени уделять внукам, передавать и прививать традиционные ценности».\\n\\nТакже депутат отметил, что такое решение увеличит уровень жизни пожилых людей.\\n\\nПоддерживаем?\\n❤️‍🔥 – определенно да!\\n😁 – нет, в таком случае либо пенсионный возраст повысят, либо цены на что-нибудь вырастут\\n🐳 – мне без разницы"
 
 ВАЖНО: ВСЕ поля должны быть НА РУССКОМ ЯЗЫКЕ. Отвечай только на русском."""
 
-            result = llm.generate_json(prompt, temperature=0.5, max_tokens=2000)
-            
+            result = await llm.agenerate_json(prompt, temperature=0.5, max_tokens=2000)
+
             # Extract sources
             sources = [
                 {
@@ -228,7 +230,7 @@ def enrich_with_llm_node(state: AgentState) -> AgentState:
                 }
                 for art in articles[:5]  # Top 5 sources
             ]
-            
+
             # Convert draft to string if it's a dict
             draft_content = result.get("draft", "")
             if isinstance(draft_content, dict):
@@ -236,21 +238,21 @@ def enrich_with_llm_node(state: AgentState) -> AgentState:
                 lead = draft_content.get("lead", "")
                 bullets = draft_content.get("bullets", [])
                 quote = draft_content.get("quote", "")
-                
+
                 draft_str = f"{lead}\n\n"
                 for bullet in bullets:
                     draft_str += f"- {bullet}\n"
                 if quote:
                     draft_str += f"\n\"{quote}\""
                 draft_content = draft_str
-            
+
             # Get telegram_post
             telegram_post = result.get("telegram_post", "")
             if not telegram_post:
                 # Fallback: create basic telegram post from headline
                 telegram_post = f"⚡️{result.get('headline', 'Новость')}\n\n{result.get('why_now', '')}"
-            
-            final_results.append({
+
+            return {
                 "dedup_group": cluster["dedup_group"],
                 "hotness": cluster["hotness"],
                 "ml_hotness": cluster.get("ml_hotness", 0.0),
@@ -262,13 +264,39 @@ def enrich_with_llm_node(state: AgentState) -> AgentState:
                 "timeline": result.get("timeline", []),
                 "draft": draft_content,
                 "telegram_post": telegram_post,
-            })
-            
-            log.info(f"Enriched cluster {cluster['dedup_group']} with LLM")
-            
+            }
+
         except Exception as e:
             log.error(f"Failed to enrich cluster {cluster['dedup_group']}: {e}")
             # Fallback to basic data
+            headline = articles[0].get("title", "")[:100]
+            return {
+                "dedup_group": cluster["dedup_group"],
+                "hotness": cluster["hotness"],
+                "ml_hotness": cluster.get("ml_hotness", 0.0),
+                "combined_hotness": cluster.get("combined_hotness", cluster["hotness"]),
+                "headline": headline,
+                "why_now": "Analysis unavailable",
+                "entities": [],
+                "sources": [{"url": art.get("url", ""), "title": art.get("title", "")} for art in articles[:3]],
+                "timeline": [],
+                "draft": "",
+                "telegram_post": f"📰{headline}\n\nПодробности скоро...",
+            }
+
+    # Process all clusters in parallel
+    tasks = [process_cluster(cluster) for cluster in state["enriched_results"]]
+    cluster_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Note: In thread executor context, this runs in a separate event loop
+
+    # Handle exceptions and collect results
+    for i, result in enumerate(cluster_results):
+        if isinstance(result, Exception):
+            log.error(f"Failed to process cluster {i}: {result}")
+            # Add fallback result
+            cluster = state["enriched_results"][i]
+            articles = cluster["articles"]
             headline = articles[0].get("title", "")[:100]
             final_results.append({
                 "dedup_group": cluster["dedup_group"],
@@ -283,9 +311,32 @@ def enrich_with_llm_node(state: AgentState) -> AgentState:
                 "draft": "",
                 "telegram_post": f"📰{headline}\n\nПодробности скоро...",
             })
-    
+        else:
+            final_results.append(result)
+            log.info(f"Enriched cluster {result['dedup_group']} with LLM")
+
     state["final_output"] = final_results
-    log.info(f"Enriched {len(final_results)} clusters")
-    
+    log.info(f"Enriched {len(final_results)} clusters (async)")
+
     return state
+
+
+def enrich_with_llm_node(state: AgentState) -> AgentState:
+    """Node 5: Enrich top clusters with LLM-generated content (sync wrapper)"""
+    # Use thread executor for async processing to avoid event loop conflicts
+    import concurrent.futures
+
+    def run_async_enrichment():
+        loop = None
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(enrich_with_llm_node_async(state))
+        finally:
+            if loop:
+                loop.close()
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_async_enrichment)
+        return future.result()
 

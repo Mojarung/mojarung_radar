@@ -77,6 +77,6 @@ python scripts/mock_parser.py
 ```bash
 curl -X POST "http://localhost:8000/api/v1/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"time_window_hours": 24, "top_k": 5}'
+  -d '{"time_window_hours": 720, "top_k": 5}'
 ```
 
