@@ -1,4 +1,4 @@
-# RADAR - Financial News Analysis System
+# MOJARUNG _ RADAR - Financial News Analysis System
 
 > **Frontend:** https://github.com/Mojarung/radar_frontend
 
