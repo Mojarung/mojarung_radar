@@ -74,17 +74,48 @@ Background processing services.
   - Stores articles in ClickHouse
   - Updates the deduplication index
 
+### Parsers (`src/parsers/`)
+
+News parsing and collection system.
+
+- `base.py` - Abstract base class for all news parsers
+- `rbc_parser.py` - РБК (RBC) news parser implementation
+- `scheduler.py` - Parser scheduler that:
+  - Runs parsers on a configurable schedule (default: every 5 minutes)
+  - Prevents duplicate articles by URL checking
+  - Sends new articles to RabbitMQ queue
+  - Supports multiple concurrent parsers
+
 ## Scripts (`scripts/`)
 
 Utility scripts for testing and administration.
 
 - `mock_parser.py` - Sends sample news articles to RabbitMQ for testing the pipeline
+- `init_db.py` - Initialize PostgreSQL and ClickHouse databases
+- `seed_sources.py` - Seed initial news sources with reputation scores
+- `quickstart.py` - Quick initialization script for all setup steps
 
 ## Data Flow
 
-1. **Ingestion**: News scraped by parsers → Published to RabbitMQ queue
-2. **Processing**: Worker consumes queue → Deduplication → Store in ClickHouse
-3. **Analysis**: API endpoint triggered → LangGraph agent fetches articles → Scores and ranks → LLM enrichment → Returns top K stories
+1. **Ingestion**: 
+   - Parser Scheduler runs every N minutes (configurable)
+   - Each parser fetches recent news from its source
+   - URL-based deduplication prevents sending duplicates
+   - Articles published to RabbitMQ queue
+   
+2. **Processing**: 
+   - Worker consumes messages from RabbitMQ
+   - Semantic deduplication using Faiss embeddings
+   - Articles stored in ClickHouse with dedup_group
+   - Faiss index updated with new article vectors
+   
+3. **Analysis**: 
+   - API endpoint triggered with time window
+   - LangGraph agent fetches articles from ClickHouse
+   - Clusters grouped by dedup_group
+   - Hotness scoring based on multiple factors
+   - Top K clusters enriched with LLM
+   - Structured results returned to client
 
 ## Database Schema
 
@@ -121,4 +152,7 @@ Utility scripts for testing and administration.
 4. **RabbitMQ Queue**: Decouples ingestion from processing, enables horizontal scaling
 5. **Swappable LLM Client**: Abstract base class allows easy provider switching (OpenRouter → OpenAI → local models)
 6. **Hotness Scoring**: Multi-factor scoring system balancing multiple dimensions of news importance
+7. **Modular Parser Architecture**: Base class pattern allows easy addition of new news sources
+8. **Two-Level Deduplication**: URL-based (parser level) + semantic (worker level) for maximum efficiency
+9. **Scheduled Parsing**: Automatic periodic news collection with configurable intervals
 

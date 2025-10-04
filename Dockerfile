@@ -23,7 +23,9 @@ RUN /root/.local/bin/uv pip install --system fastapi>=0.115.0 uvicorn[standard]>
     psycopg2-binary>=2.9.10 clickhouse-connect>=0.8.8 aio-pika>=9.5.0 \
     faiss-cpu>=1.9.0 polars>=1.12.0 langgraph>=0.2.45 langchain>=0.3.7 \
     langchain-core>=0.3.15 langchain-openai>=0.2.9 loguru>=0.7.2 \
-    httpx>=0.28.0 numpy>=2.1.3 sentence-transformers>=3.3.1 python-dateutil>=2.9.0
+    httpx>=0.28.0 'numpy>=1.26.0,<2.0.0' sentence-transformers>=3.3.1 python-dateutil>=2.9.0 \
+    requests>=2.32.0 beautifulsoup4>=4.12.0 lxml>=5.3.0 pandas>=2.2.0 \
+    fasttext-wheel>=0.9.2 huggingface-hub>=0.26.0
 
 # Copy application code
 COPY . .

@@ -6,6 +6,8 @@
 docker-compose up --build
 ```
 
+### Services
+
 Access the API at `http://localhost:8000`
 
 Access Adminer (PostgreSQL UI) at `http://localhost:8080`
@@ -13,6 +15,15 @@ Access Adminer (PostgreSQL UI) at `http://localhost:8080`
 Access Tabix (ClickHouse UI) at `http://localhost:8081`
 
 Access RabbitMQ Management at `http://localhost:15672` (user: radar_user, password: radar_password)
+
+### Running Services
+
+- `radar-api` - FastAPI REST API
+- `radar-worker` - News processing worker
+- `radar-parser` - News parser scheduler (runs every 5 minutes)
+- `radar-postgres` - PostgreSQL database
+- `radar-clickhouse` - ClickHouse database
+- `radar-rabbitmq` - RabbitMQ message queue
 
 ## Running Locally with uv
 
@@ -47,7 +58,13 @@ uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 python -m src.workers.news_processor
 ```
 
-### Send Sample News
+### Start Parser Scheduler
+
+```bash
+python -m src.parsers.scheduler
+```
+
+### Send Sample News (Testing)
 
 ```bash
 python scripts/mock_parser.py

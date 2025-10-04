@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     # News Processing Configuration
     news_queue_name: str = "news_ingestion_queue"
     prefetch_count: int = 10
+    
+    # Parser Configuration
+    parser_interval_minutes: int = 5
+    fasttext_min_score: float = 0.5  # Minimum confidence for FastText classification
 
     @property
     def postgres_url(self) -> str:
