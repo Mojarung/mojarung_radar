@@ -33,7 +33,9 @@ class ClickHouseClient:
             content String,
             published_at DateTime,
             scraped_at DateTime DEFAULT now(),
-            dedup_group UUID
+            dedup_group UUID,
+            companies String DEFAULT '',
+            people String DEFAULT ''
         ) ENGINE = MergeTree()
         ORDER BY (published_at, id)
         SETTINGS index_granularity = 8192
@@ -54,8 +56,10 @@ class ClickHouseClient:
         content: str,
         published_at: datetime,
         dedup_group: uuid.UUID,
+        companies: str = "",
+        people: str = "",
     ) -> bool:
-        """Insert a single news article"""
+        """Insert a single news article with NER entities"""
         try:
             self.client.insert(
                 "news_articles",
@@ -68,6 +72,8 @@ class ClickHouseClient:
                     published_at,
                     datetime.utcnow(),
                     str(dedup_group),
+                    companies,
+                    people,
                 ]],
                 column_names=[
                     "id",
@@ -78,6 +84,8 @@ class ClickHouseClient:
                     "published_at",
                     "scraped_at",
                     "dedup_group",
+                    "companies",
+                    "people",
                 ],
             )
             log.info(f"Inserted article {article_id} into ClickHouse")
@@ -99,7 +107,9 @@ class ClickHouseClient:
             content,
             published_at,
             scraped_at,
-            dedup_group
+            dedup_group,
+            companies,
+            people
         FROM news_articles
         WHERE published_at >= now() - INTERVAL {time_window_hours} HOUR
         ORDER BY published_at DESC
@@ -117,6 +127,8 @@ class ClickHouseClient:
                     "published_at": row[5],
                     "scraped_at": row[6],
                     "dedup_group": row[7],
+                    "companies": row[8],
+                    "people": row[9],
                 })
             log.info(f"Fetched {len(articles)} articles from last {time_window_hours} hours")
             return articles
@@ -135,7 +147,9 @@ class ClickHouseClient:
             content,
             published_at,
             scraped_at,
-            dedup_group
+            dedup_group,
+            companies,
+            people
         FROM news_articles
         WHERE dedup_group = %(dedup_group)s
         ORDER BY published_at ASC
@@ -156,6 +170,8 @@ class ClickHouseClient:
                     "published_at": row[5],
                     "scraped_at": row[6],
                     "dedup_group": row[7],
+                    "companies": row[8],
+                    "people": row[9],
                 })
             return articles
         except Exception as e:

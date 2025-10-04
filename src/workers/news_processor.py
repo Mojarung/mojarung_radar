@@ -12,6 +12,7 @@ from src.db.session import get_db_context
 from src.db.models import Source
 from src.db.clickhouse_client import get_clickhouse_client
 from src.services.dedup import get_dedup_service
+from src.parsers.ner_analyzer import get_ner_analyzer
 
 settings = get_settings()
 
@@ -23,6 +24,7 @@ class NewsProcessor:
         self.connection: AbstractRobustConnection = None
         self.clickhouse = get_clickhouse_client()
         self.dedup_service = get_dedup_service()
+        self.ner_analyzer = get_ner_analyzer()
 
     async def connect(self):
         """Establish connection to RabbitMQ"""
@@ -79,7 +81,23 @@ class NewsProcessor:
                     dedup_group = uuid.uuid4()
                     log.info(f"Article is unique, created new group {dedup_group}")
 
-                # Insert into ClickHouse
+                # Extract entities (companies and people) using NER
+                entities = self.ner_analyzer.analyze_article(title, content)
+                companies_str = entities['companies_str']
+                people_str = entities['people_str']
+                
+                if entities['companies_count'] > 0 or entities['people_count'] > 0:
+                    log.info(
+                        f"Extracted NER entities: "
+                        f"{entities['companies_count']} companies, "
+                        f"{entities['people_count']} people"
+                    )
+                    if entities['companies']:
+                        log.debug(f"Companies: {', '.join(entities['companies'][:5])}")
+                    if entities['people']:
+                        log.debug(f"People: {', '.join(entities['people'][:5])}")
+
+                # Insert into ClickHouse with NER data
                 success = self.clickhouse.insert_article(
                     article_id=article_id,
                     source_id=source_id,
@@ -88,6 +106,8 @@ class NewsProcessor:
                     content=content,
                     published_at=published_at,
                     dedup_group=dedup_group,
+                    companies=companies_str,
+                    people=people_str,
                 )
 
                 if success:
