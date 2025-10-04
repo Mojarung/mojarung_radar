@@ -1,6 +1,6 @@
-<<<<<<< HEAD
+
 # MOJARUNG RADAR - Financial News Analysis System
-=======
+
 
 > **Frontend:** https://github.com/Mojarung/radar_frontend
 
