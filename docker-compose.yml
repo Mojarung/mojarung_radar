@@ -99,9 +99,9 @@ services:
       RABBITMQ_USER: radar_user
       RABBITMQ_PASSWORD: radar_password
       RABBITMQ_VHOST: /
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: anthropic/claude-3.5-sonnet
-      OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+      NVIDIA_MODEL: qwen/qwen3-next-80b-a3b-instruct
+      NVIDIA_BASE_URL: https://integrate.api.nvidia.com/v1
       API_HOST: 0.0.0.0
       API_PORT: 8000
       LOG_LEVEL: INFO
@@ -145,9 +145,9 @@ services:
       RABBITMQ_USER: radar_user
       RABBITMQ_PASSWORD: radar_password
       RABBITMQ_VHOST: /
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: anthropic/claude-3.5-sonnet
-      OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+      NVIDIA_MODEL: qwen/qwen3-next-80b-a3b-instruct
+      NVIDIA_BASE_URL: https://integrate.api.nvidia.com/v1
       LOG_LEVEL: INFO
       FAISS_INDEX_PATH: /app/data/faiss_index
       EMBEDDING_MODEL: sentence-transformers/all-MiniLM-L6-v2

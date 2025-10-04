@@ -5,6 +5,7 @@ from src.agents.nodes import (
     fetch_recent_news_node,
     cluster_articles_node,
     calculate_hotness_node,
+    calculate_ml_hotness_node,
     rank_and_select_node,
     enrich_with_llm_node,
 )
@@ -21,14 +22,16 @@ def create_analysis_graph():
     workflow.add_node("fetch_news", fetch_recent_news_node)
     workflow.add_node("cluster", cluster_articles_node)
     workflow.add_node("calculate_hotness", calculate_hotness_node)
+    workflow.add_node("calculate_ml_hotness", calculate_ml_hotness_node)
     workflow.add_node("rank_select", rank_and_select_node)
     workflow.add_node("enrich_llm", enrich_with_llm_node)
-    
+
     # Define edges
     workflow.set_entry_point("fetch_news")
     workflow.add_edge("fetch_news", "cluster")
     workflow.add_edge("cluster", "calculate_hotness")
-    workflow.add_edge("calculate_hotness", "rank_select")
+    workflow.add_edge("calculate_hotness", "calculate_ml_hotness")
+    workflow.add_edge("calculate_ml_hotness", "rank_select")
     workflow.add_edge("rank_select", "enrich_llm")
     workflow.add_edge("enrich_llm", END)
     

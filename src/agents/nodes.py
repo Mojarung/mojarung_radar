@@ -8,6 +8,7 @@ from src.db.clickhouse_client import get_clickhouse_client
 from src.db.session import get_db_context
 from src.db.models import Source
 from src.services.hotness_scorer import get_hotness_scorer
+from src.services.ml_scorer import get_ml_scorer
 from src.services.llm_client import get_llm_client
 from src.core.logging_config import log
 
@@ -55,52 +56,109 @@ def cluster_articles_node(state: AgentState) -> AgentState:
 def calculate_hotness_node(state: AgentState) -> AgentState:
     """Node 3: Calculate hotness score for each cluster"""
     log.info("Calculating hotness scores")
-    
+
     scorer = get_hotness_scorer()
     scored_clusters = []
-    
+
     # Fetch source reputation scores
     with get_db_context() as db:
         sources = {s.id: s.reputation_score for s in db.query(Source).all()}
-    
+
     for dedup_group, articles in state["clustered_articles"].items():
         # Get reputation scores for articles in this cluster
         reputation_scores = [
             sources.get(article.get("source_id"), 0.5)
             for article in articles
         ]
-        
+
         hotness = scorer.calculate_hotness(
             articles=articles,
             source_reputation_scores=reputation_scores,
             time_window_hours=state["time_window_hours"],
         )
-        
+
         scored_clusters.append({
             "dedup_group": dedup_group,
             "articles": articles,
             "hotness": hotness,
             "article_count": len(articles),
         })
-    
+
     # Sort by hotness score (descending)
     scored_clusters.sort(key=lambda x: x["hotness"], reverse=True)
-    
+
     state["scored_clusters"] = scored_clusters
     log.info(f"Scored {len(scored_clusters)} clusters")
-    
+
+    return state
+
+
+def calculate_ml_hotness_node(state: AgentState) -> AgentState:
+    """Node 3.5: Calculate ML-based hotness scores for clusters"""
+    log.info("Calculating ML-based hotness scores")
+
+    ml_scorer = get_ml_scorer()
+    ml_scored_clusters = []
+
+    for cluster in state["scored_clusters"]:
+        dedup_group = cluster["dedup_group"]
+        articles = cluster["articles"]
+
+        # Get ML scores for all articles in this cluster
+        ml_scored_articles = ml_scorer.score_articles(articles)
+
+        # Calculate average ML score for the cluster
+        ml_scores = [article.get("ml_hot_score", 0.0) for article in ml_scored_articles]
+        avg_ml_score = sum(ml_scores) / len(ml_scores) if ml_scores else 0.0
+
+        # Update cluster with ML score
+        cluster_copy = cluster.copy()
+        cluster_copy["ml_hotness"] = avg_ml_score
+        cluster_copy["ml_scored_articles"] = ml_scored_articles
+
+        ml_scored_clusters.append(cluster_copy)
+
+    state["ml_scored_clusters"] = ml_scored_clusters
+    log.info(f"Calculated ML scores for {len(ml_scored_clusters)} clusters")
+
     return state
 
 
 def rank_and_select_node(state: AgentState) -> AgentState:
-    """Node 4: Select top K clusters"""
-    log.info(f"Selecting top {state['top_k']} clusters")
-    
-    top_clusters = state["scored_clusters"][: state["top_k"]]
+    """Node 4: Select top K clusters using combined scoring"""
+    log.info(f"Selecting top {state['top_k']} clusters using combined scoring")
+
+    # Get clusters with both traditional and ML scores
+    clusters = state.get("ml_scored_clusters", state.get("scored_clusters", []))
+
+    if not clusters:
+        log.warning("No clusters available for ranking")
+        state["enriched_results"] = []
+        return state
+
+    # Calculate combined scores for ranking
+    for cluster in clusters:
+        traditional_score = cluster.get("hotness", 0.0)
+        ml_score = cluster.get("ml_hotness", 0.0)
+
+        # Weighted combination (70% traditional, 30% ML for conservative approach)
+        combined_score = (traditional_score * 0.7) + (ml_score * 0.3)
+        cluster["combined_hotness"] = combined_score
+
+        log.debug(f"Cluster {cluster['dedup_group'][:8]}: "
+                 f"Traditional={traditional_score:.3f}, ML={ml_score:.3f}, "
+                 f"Combined={combined_score:.3f}")
+
+    # Sort by combined score (descending)
+    clusters.sort(key=lambda x: x.get("combined_hotness", 0.0), reverse=True)
+
+    # Select top K clusters
+    top_clusters = clusters[: state["top_k"]]
     state["enriched_results"] = top_clusters
-    
+
     log.info(f"Selected {len(top_clusters)} clusters for enrichment")
-    
+    log.info(f"Top cluster combined scores: {[(c['dedup_group'][:8], c.get('combined_hotness', 0.0)) for c in top_clusters]}")
+
     return state
 
 
@@ -126,25 +184,38 @@ def enrich_with_llm_node(state: AgentState) -> AgentState:
         
         # Generate enriched data with LLM
         try:
-            prompt = f"""You are a financial news analyst. Analyze the following news cluster and provide structured output.
+            prompt = f"""Ты — финансовый новостной аналитик и создатель контента для Telegram. Проанализируй следующие новостные статьи и предоставь структурированный ответ.
 
-News Articles:
+Новостные статьи:
 {consolidated_text}
 
-Generate a JSON response with the following fields:
-1. "headline": A concise, impactful headline (max 100 chars)
-2. "why_now": 1-2 sentences explaining why this is important NOW (novelty, confirmations, scale of impact)
-3. "entities": A list of companies, tickers, countries, or sectors mentioned (max 10 items)
-4. "timeline": A list of key timestamps with brief descriptions (format: [{{"time": "YYYY-MM-DD HH:MM", "event": "description"}}])
-5. "draft": A complete draft post as a SINGLE STRING with markdown formatting. Include:
-   - Lead paragraph (2-3 sentences)
-   - 3 bullet points (use - for bullets)
-   - A relevant quote or reference with attribution
-   
-Example format for draft field:
-"draft": "Lead paragraph here.\\n\\n- First key point\\n- Second key point\\n- Third key point\\n\\n\\"Quote here\\" - Source"
+Сгенерируй JSON ответ со следующими полями:
 
-Ensure all information is grounded in the provided articles. RESPOND IN RUSSIA"""
+1. "headline": Краткий, яркий заголовок (максимум 100 символов)
+
+2. "why_now": 1-2 предложения, объясняющие, почему это важно СЕЙЧАС (новизна, подтверждения, масштаб влияния)
+
+3. "entities": Список компаний, тикеров, стран или секторов, упомянутых в новостях (максимум 10 элементов)
+
+4. "timeline": Список ключевых временных точек с краткими описаниями (формат: [{{"time": "YYYY-MM-DD HH:MM", "event": "описание"}}])
+
+5. "draft": Полный черновик поста как ОДНА СТРОКА с markdown форматированием. Включи:
+   - Вводный параграф (2-3 предложения)
+   - 3 ключевых пункта (используй - для буллитов)
+   - Релевантную цитату или ссылку с атрибуцией
+
+6. "telegram_post": Готовый к публикации пост для Telegram в следующем формате:
+   - Начни с подходящего эмодзи (⚡️ для срочного/важного, 😀 для забавного/неожиданного, 🧐 для аналитического, 📊 для данных/статистики, 💰 для финансового)
+   - Затем заголовок
+   - Основной текст в 2-3 коротких абзацах ИЛИ буллиты (▶️) если несколько заявлений
+   - Если новость вызывает дискуссию/мнение, добавь в конце короткий вопрос и 2-3 варианта реакций-эмодзи
+   - Для сухих фактов или длинных списков пропусти опрос
+   - Делай кратко, вовлекающе и готово к копированию
+   
+Пример формата telegram_post:
+"⚡️Минимальную пенсию в России хотят увеличить до ₽35 тысяч\\n\\nС такой идеей выступил депутат Мособлдумы Анатолий Никитин. По его словам, увеличение пенсии положительно скажется на демографической ситуации. Пенсионерам не нужно будет работать, они смогут «больше времени уделять внукам, передавать и прививать традиционные ценности».\\n\\nТакже депутат отметил, что такое решение увеличит уровень жизни пожилых людей.\\n\\nПоддерживаем?\\n❤️‍🔥 – определенно да!\\n😁 – нет, в таком случае либо пенсионный возраст повысят, либо цены на что-нибудь вырастут\\n🐳 – мне без разницы"
+
+ВАЖНО: ВСЕ поля должны быть НА РУССКОМ ЯЗЫКЕ. Отвечай только на русском."""
 
             result = llm.generate_json(prompt, temperature=0.5, max_tokens=2000)
             
@@ -173,15 +244,24 @@ Ensure all information is grounded in the provided articles. RESPOND IN RUSSIA""
                     draft_str += f"\n\"{quote}\""
                 draft_content = draft_str
             
+            # Get telegram_post
+            telegram_post = result.get("telegram_post", "")
+            if not telegram_post:
+                # Fallback: create basic telegram post from headline
+                telegram_post = f"⚡️{result.get('headline', 'Новость')}\n\n{result.get('why_now', '')}"
+            
             final_results.append({
                 "dedup_group": cluster["dedup_group"],
                 "hotness": cluster["hotness"],
+                "ml_hotness": cluster.get("ml_hotness", 0.0),
+                "combined_hotness": cluster.get("combined_hotness", cluster["hotness"]),
                 "headline": result.get("headline", "No headline"),
                 "why_now": result.get("why_now", ""),
                 "entities": result.get("entities", []),
                 "sources": sources,
                 "timeline": result.get("timeline", []),
                 "draft": draft_content,
+                "telegram_post": telegram_post,
             })
             
             log.info(f"Enriched cluster {cluster['dedup_group']} with LLM")
@@ -189,15 +269,19 @@ Ensure all information is grounded in the provided articles. RESPOND IN RUSSIA""
         except Exception as e:
             log.error(f"Failed to enrich cluster {cluster['dedup_group']}: {e}")
             # Fallback to basic data
+            headline = articles[0].get("title", "")[:100]
             final_results.append({
                 "dedup_group": cluster["dedup_group"],
                 "hotness": cluster["hotness"],
-                "headline": articles[0].get("title", "")[:100],
+                "ml_hotness": cluster.get("ml_hotness", 0.0),
+                "combined_hotness": cluster.get("combined_hotness", cluster["hotness"]),
+                "headline": headline,
                 "why_now": "Analysis unavailable",
                 "entities": [],
                 "sources": [{"url": art.get("url", ""), "title": art.get("title", "")} for art in articles[:3]],
                 "timeline": [],
                 "draft": "",
+                "telegram_post": f"📰{headline}\n\nПодробности скоро...",
             })
     
     state["final_output"] = final_results

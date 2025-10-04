@@ -1,7 +1,6 @@
-"""LLM client abstraction with OpenRouter implementation"""
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-import httpx
+from openai import OpenAI
 from src.core.config import get_settings
 from src.core.logging_config import log
 
@@ -34,8 +33,8 @@ class BaseLLMClient(ABC):
         pass
 
 
-class OpenRouterClient(BaseLLMClient):
-    """OpenRouter API client implementation"""
+class NvidiaClient(BaseLLMClient):
+    """NVIDIA API client implementation using Qwen model"""
 
     def __init__(
         self,
@@ -43,37 +42,37 @@ class OpenRouterClient(BaseLLMClient):
         model: Optional[str] = None,
         base_url: Optional[str] = None,
     ):
-        self.api_key = api_key or settings.openrouter_api_key
-        self.model = model or settings.openrouter_model
-        self.base_url = base_url or settings.openrouter_base_url
-        self.client = httpx.Client(timeout=60.0)
+        self.api_key = api_key or settings.nvidia_api_key
+        self.model = model or settings.nvidia_model
+        self.base_url = base_url or settings.nvidia_base_url
+        self.client = OpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key
+        )
 
     def generate(
         self,
         prompt: str,
-        temperature: float = 0.7,
-        max_tokens: int = 2000,
+        temperature: float = 0.58,
+        max_tokens: int = 4096,
+        top_p: float = 0.7,
         **kwargs
     ) -> str:
         """Generate text from a prompt"""
         try:
-            response = self.client.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    **kwargs,
-                },
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
+                stream=False,
+                **kwargs
             )
-            response.raise_for_status()
-            result = response.json()
-            content = result["choices"][0]["message"]["content"]
+            
+            message = completion.choices[0].message
+            content = message.content if message.content else ""
+            
             log.info(f"LLM generation successful (model: {self.model})")
             return content
         except Exception as e:
@@ -83,8 +82,9 @@ class OpenRouterClient(BaseLLMClient):
     def generate_json(
         self,
         prompt: str,
-        temperature: float = 0.7,
-        max_tokens: int = 2000,
+        temperature: float = 0.58,
+        max_tokens: int = 4096,
+        top_p: float = 0.7,
         **kwargs
     ) -> Dict[str, Any]:
         """Generate structured JSON from a prompt"""
@@ -92,25 +92,20 @@ class OpenRouterClient(BaseLLMClient):
         
         try:
             # Add JSON formatting instruction to prompt
-            json_prompt = f"{prompt}\n\nRespond with valid JSON only, no other text."
+            json_prompt = f"{prompt}\n\nОтветь ТОЛЬКО валидным JSON, без дополнительного текста."
             
-            response = self.client.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "messages": [{"role": "user", "content": json_prompt}],
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    **kwargs,
-                },
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": json_prompt}],
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
+                stream=False,
+                **kwargs
             )
-            response.raise_for_status()
-            result = response.json()
-            content = result["choices"][0]["message"]["content"]
+            
+            message = completion.choices[0].message
+            content = message.content if message.content else ""
             
             # Extract JSON from markdown code blocks if present
             if "```json" in content:
@@ -125,10 +120,6 @@ class OpenRouterClient(BaseLLMClient):
             log.error(f"LLM JSON generation failed: {e}")
             raise
 
-    def __del__(self):
-        """Close the HTTP client on deletion"""
-        self.client.close()
-
 
 # Singleton instance
 _llm_client: Optional[BaseLLMClient] = None
@@ -138,6 +129,6 @@ def get_llm_client() -> BaseLLMClient:
     """Get singleton LLM client instance"""
     global _llm_client
     if _llm_client is None:
-        _llm_client = OpenRouterClient()
+        _llm_client = NvidiaClient()
     return _llm_client
 

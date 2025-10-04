@@ -60,6 +60,10 @@ class AnalysisResult(BaseModel):
         description="Key timestamps in the story development"
     )
     draft: str = Field(description="Draft post with lead, bullets, and quote")
+    telegram_post: str = Field(
+        default="",
+        description="Ready-to-publish Telegram post with emoji and interactive elements"
+    )
 
 
 class AnalysisResponse(BaseModel):

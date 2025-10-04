@@ -59,6 +59,7 @@ async def analyze_news(
                         TimelineEvent(**event) for event in result["timeline"]
                     ] if isinstance(result["timeline"], list) else [],
                     draft=result["draft"],
+                    telegram_post=result.get("telegram_post", ""),
                 )
             )
         

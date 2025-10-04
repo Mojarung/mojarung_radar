@@ -34,10 +34,10 @@ class Settings(BaseSettings):
     rabbitmq_password: str = "radar_password"
     rabbitmq_vhost: str = "/"
 
-    # LLM Configuration
-    openrouter_api_key: str = "your_api_key_here"
-    openrouter_model: str = "anthropic/claude-3.5-sonnet"
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # LLM Configuration (NVIDIA API)
+    nvidia_api_key: str = "your_api_key_here"
+    nvidia_model: str = "qwen/qwen3-next-80b-a3b-instruct"
+    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
 
     # Application Configuration
     api_host: str = "0.0.0.0"

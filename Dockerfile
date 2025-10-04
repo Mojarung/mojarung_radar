@@ -27,8 +27,10 @@ RUN /root/.local/bin/uv pip install --system fastapi>=0.115.0 uvicorn[standard]>
     requests>=2.32.0 beautifulsoup4>=4.12.0 lxml>=5.3.0 pandas>=2.2.0 \
     fasttext-wheel>=0.9.2 huggingface-hub>=0.26.0 natasha>=1.6.0 razdel>=0.5.0
 
-# Copy application code
+# Copy application code and ML models
 COPY . .
+# Убеждаемся что ML-модель доступна
+RUN ls -la ml/hot_news_model/models/ || echo "ML model directory not found"
 
 # Create data directory for Faiss index
 RUN mkdir -p /app/data
